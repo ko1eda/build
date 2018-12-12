@@ -38,18 +38,22 @@ vi startup.sh
 chmod +x startup.sh
 ./startup.sh
 ```
-3. Open the id_rsa public key created by the startup script and use it to create a deploy key on gitlab or github, this will be used to authenticate the server when it runs git pull on your application repository https://docs.gitlab.com/ee/ssh/
+3. Open the id_rsa public key created by the startup script and use it to create a deploy key on gitlab or github, this will be used to authenticate the server when it runs git pull on your application repository https://docs.gitlab.com/ee/ssh/ 
 ```
  cat /home/deployer/.ssh/id_rsa.pub
- ```
-3. Next,  Create a keypair that can be used by envoyer to ssh into your server, see https://aws.amazon.com/premiumsupport/knowledge-center/new-user-accounts-linux-instance/
-4. Place the public key from that newly created keypair in /home/deployer/.ssh/authorized_keys (this is a file not a directory)
 ```
-cp deployer_privkey /home/deployer/.ssh/authorized_keys
-sudo chmod 600 -R /home/deployer/
+4. Next, Place the public key from that newly created keypair in /home/deployer/.ssh/authorized_keys (this is a file not a directory) https://aws.amazon.com/premiumsupport/knowledge-center/new-user-accounts-linux-instance/
 ```
-5. You should now be able to ssh into your server as the deployer user
-6. See build-notes.md for links to setup CI/CD and follow this tutorial -- https://docs.gitlab.com/ee/ci/examples/laravel_with_gitlab_and_envoy/
-7. Use gitlab environment variables to set 
+cat /home/deployer/.ssh/id_rsa.pub >> /home/deployer/.ssh/authorized_keys
+sudo chmod 600 /home/deployer/.ssh/authorized_keys
+```
+5. Copy the value from /home/deployer/.ssh/id_rsa to your local machines ~/.ssh directory, you should now be able to ssh into your server from your local machine using
+```
+cd ~/.ssh
+ssh deployer@<server_ip> -i <name_of_private_key_file>
+```
+6. You should now be able to ssh into your server as the deployer user
+7. See build-notes.md for links to setup CI/CD and follow this tutorial -- https://docs.gitlab.com/ee/ci/examples/laravel_with_gitlab_and_envoy/
+8. Use gitlab environment variables to set 
   + GITLAB_SECRET -> this would be the token used to access your gitlab docker registry
-  + SSH_PRIVATE_KEY -> This would be the private key envoy user uses to ssh into your server (see step 3 and 4 above)
+  + SSH_PRIVATE_KEY -> This would be the private key the deployer user account uses to ssh into your server (see step 3 and 4 above)
