@@ -1,0 +1,84 @@
+version : '3'
+
+services : 
+  nginx:
+    build: 
+      context: ./nginx
+      dockerfile: DockerFile
+    image: <name_space>/nginx:1.0.0
+    volumes: 
+      - <path/to/app/directory/>:/var/www/html
+    ports:
+      - 80:80
+    networks: 
+      - appnet
+    depends_on:
+      - php-fpm
+    restart: always
+
+  php-fpm:
+    build:
+      context: ./php
+      dockerfile: DockerFile
+    image: <name_space>/php-fpm:1.0.0
+    volumes: 
+      - <path/to/app/directory/>:/var/www/html
+    networks: 
+      - appnet
+    restart: always
+  
+  queue-worker:
+    build:
+      context: ./queue-worker
+      dockerfile: DockerFile
+    image: <name_space>/queue-worker:1.0.0
+    volumes: 
+      - <path/to/app/directory/>:/var/www/html
+    networks: 
+      - appnet
+    depends_on:
+      - php-fpm
+    restart: always
+  
+  mysql:
+    build:
+      context: ./mysql
+      dockerfile: DockerFile
+    image: <name_space>/mysql:1.0.0
+    volumes:
+      - mysql_data:/var/lib/mysql
+    environment: 
+      - MYSQL_ROOT_PASSWORD=root
+      - MYSQL_DATABASE=test_db
+      - MYSQL_USER=test_user
+      - MYSQL_PASSWORD=password
+    ports:
+      - 3306:3306
+    networks: 
+      - appnet
+    restart: always
+
+  node:
+    build:
+      context: ./node
+      dockerfile: DockerFile
+    image: <name_space>/node:1.0.0
+    volumes: 
+      - <path/to/root/directory/>:/var/www/html
+    networks:
+      - appnet
+
+  redis:
+    image: redis:5.0.0-alpine
+    networks: 
+      - appnet  
+    volumes:
+      - redis_data:/data
+    restart: always
+
+volumes:
+  mysql_data:
+  redis_data:
+
+networks: 
+  appnet:
