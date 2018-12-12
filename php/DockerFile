@@ -1,0 +1,46 @@
+FROM ubuntu:18.04
+
+LABEL author="Christopher Koleda" version="0.1.0"
+
+RUN apt-get update && \
+  apt-get install -y --no-install-recommends locales locales-all
+
+ENV LANG en_US.UTF-8
+ENV LANGUAGE en_US:en_US
+ENV LC_ALL en_US.UTF-8
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && \
+  apt-get install -y curl zip unzip git software-properties-common && \
+  add-apt-repository -y ppa:ondrej/php && \
+  apt-get update && \
+  apt-get install -y php7.2-fpm php7.2-cli php7.2-gd php7.2-mysql php7.2-gmp\
+  php7.2-imap libphp-predis php7.2-mbstring php7.2-xml php7.2-curl && \
+  php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');" && \
+  php -r "if (hash_file('SHA384', 'composer-setup.php') === '93b54496392c062774670ac18b134c3b3a95e5a5e5c8f1a9f115f203b75bf9a129d5daa8ba6a13e2cc8a1da0806388a8') { echo 'Installer verified'; } else { echo 'Installer corrupt'; unlink('composer-setup.php'); } echo PHP_EOL;" && \
+  php composer-setup.php && \
+  php -r "unlink('composer-setup.php');" && \
+  mv composer.phar /usr/local/bin/composer && \
+  mkdir /run/php && \
+  apt-get remove -y --purge software-properties-common && \
+  apt-get clean && \
+  rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* && \
+  usermod -u 1001 www-data && \
+  groupmod -g 1001 www-data
+  
+
+# add updated config files to the container
+ADD ./php-fpm.conf /etc/php/7.2/fpm/php-fpm.conf
+ADD ./www.conf /etc/php/7.2/fpm/pool.d/www.conf
+# Add laravel queue worker to systemd 
+# ADD laravel-queue.service /etc/systemd/system/
+
+# Change permissions on laravel queue worker service https://access.redhat.com/documentation/en-us/red_hat_enterprise_linux/7/html/system_administrators_guide/sect-managing_services_with_systemd-unit_files
+# RUN chmod 664 /etc/systemd/system/laravel-queue.service && \
+#   chown root:root /etc/systemd/system/laravel-queue.service
+
+WORKDIR /var/www/html
+
+EXPOSE 9000
+
+CMD php-fpm7.2  

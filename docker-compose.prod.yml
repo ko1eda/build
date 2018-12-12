@@ -1,0 +1,71 @@
+version: '3'
+
+services : 
+  nginx:
+    image: registry.gitlab.com/<user_name>/<project_dir>/<container_name>:latest
+    volumes: 
+      - ${APP_MOUNT}:/var/www/html
+      # - ${LETSENCRYPT_MOUNT}:/etc/pki/tls/letsencrypt
+    networks: 
+      - appnet
+    ports:
+      - 80:80
+      - 443:443
+    depends_on:
+      - php-fpm
+    restart: always
+
+  php-fpm:
+    image: registry.gitlab.com/<user_name>/<project_dir>/<container_name>:latest
+    volumes: 
+      - ${APP_MOUNT}:/var/www/html
+    networks: 
+    - appnet
+    restart: always
+  
+  queue-worker:
+    image: registry.gitlab.com/<user_name>/<project_dir>/<container_name>:latest
+    volumes: 
+      - ${APP_MOUNT}:/var/www/html
+    networks: 
+      - appnet
+    depends_on:
+      - php-fpm
+    restart: always
+  
+  mysql:
+    image: registry.gitlab.com/<user_name>/<project_dir>/<container_name>:latest
+    volumes:
+      - mysql_data:/var/lib/mysql
+    environment: 
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - MYSQL_DATABASE=${MYSQL_DATABASE}
+      - MYSQL_USER=${MYSQL_USER}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+    networks: 
+      - appnet
+    ports:
+      - 3306:3306
+    restart: always
+
+  node:
+    image: registry.gitlab.com/<user_name>/<project_dir>/<container_name>:latest   
+    volumes: 
+    - ${APP_MOUNT}:/var/www/html
+    networks:
+      - appnet
+      
+  redis:
+    image: redis:5.0.0-alpine
+    networks: 
+      - appnet  
+    volumes:
+      - redis_data:/data
+    restart: always
+
+volumes:
+  mysql_data:
+  redis_data:
+
+networks: 
+  appnet:

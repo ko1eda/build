@@ -1,0 +1,67 @@
+version : '3'
+
+services : 
+  nginx:
+    build: 
+      context: ./nginx
+      dockerfile: DockerFile
+    image: ${REGISTRY_BASE}/nginx:1.0.${CI_PIPELINE_IID}
+    networks: 
+      - appnet
+    depends_on:
+      - php-fpm
+    restart: always
+
+  php-fpm:
+    build:
+      context: ./php
+      dockerfile: DockerFile
+    image: ${REGISTRY_BASE}/php-fpm:1.0.${CI_PIPELINE_IID}
+    networks: 
+      - appnet
+    restart: always
+  
+  queue-worker:
+    build:
+      context: ./queue-worker
+      dockerfile: DockerFile
+    image: ${REGISTRY_BASE}/queue-worker:1.0.${CI_PIPELINE_IID}
+    networks: 
+      - appnet
+    depends_on:
+      - php-fpm
+    restart: always
+  
+  mysql:
+    build:
+      context: ./mysql
+      dockerfile: DockerFile
+    image: ${REGISTRY_BASE}/mysql:1.0.${CI_PIPELINE_IID}
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks: 
+      - appnet
+    restart: always
+
+  node:
+    build:
+      context: ./node
+      dockerfile: DockerFile
+    image: ${REGISTRY_BASE}/node:1.0.${CI_PIPELINE_IID}
+    networks:
+      - appnet
+
+  redis:
+    image: redis:5.0.0-alpine
+    networks: 
+      - appnet  
+    volumes:
+      - redis_data:/data
+    restart: always
+
+volumes:
+  mysql_data:
+  redis_data:
+
+networks: 
+  appnet:

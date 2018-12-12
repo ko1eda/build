@@ -1,0 +1,83 @@
+variables:
+  APP_NAME: # The name of your application directory ex: my-cool-app/
+  SERVER_IP: # the ip address of your server (will add support for multiple servers eventually possibly using bash do loop like below)
+  GIT_URL: # url to the git repository to pull your application from
+  REGISTRY_BASE: registry.gitlab.com/${CI_PROJECT_PATH} # the path to the docker registry you are using for the project
+  MYSQL_ROOT_PASSWORD: # these should correspond to the mysql variables in the build/php/.env.test file. Production mysql variables should be set in build/.env
+  MYSQL_DATABASE:
+  MYSQL_USER: 
+  MYSQL_PASSWORD:
+
+stages:
+  - build
+  - testing
+  - deployment
+
+# The multiline script below was adapted from https://stackoverflow.com/questions/47327979/how-to-use-multiple-image-tags-with-docker-compose
+# It tages every image (besides redis because redis doesn't start with 'registry.gitlab.com') as latest and pushes it to our private docker registry
+# Note the awk command reads through files line by line and reformats/interperates them https://www.tutorialspoint.com/awk/awk_basic_examples.htm
+# the command is saying read the docker compose file, take only the image:<image_name> part | pipe it to awk then split it into columns based on each colon (-F ':' )
+# then take the 2nd column so ($1)iamge:($2)registry.gitlab.com/<image_name>:($3)tag
+# and store that second column the registry.gitlab.com/<image_name> part in a variable images then loop through it and tag each as latest
+# CI_PIPELINE_IID is the pipeline number scoped to my project 
+build_containers:
+  stage: build 
+  image: docker:stable
+  services:
+   - docker:dind
+  variables:
+    DOCKER_DRIVER: overlay2
+    # PORT: 2375
+    DOCKER_HOST: tcp://docker:2375/
+  script:
+    - apk update
+    - apk add py-pip
+    - pip install docker-compose
+    - docker login -u gitlab-ci-token -p $CI_BUILD_TOKEN $CI_REGISTRY
+    - docker-compose -f $CI_PROJECT_DIR/build/docker-compose.gitlab.yml build 
+    - docker-compose -f $CI_PROJECT_DIR/build/docker-compose.gitlab.yml push 
+    - |
+      images=$(docker-compose -f $CI_PROJECT_DIR/build/docker-compose.gitlab.yml config | grep 'image:' | awk -F ':' '{ print $2 }' | grep 'registry')
+      for image in $images
+        do 
+          docker tag "${image}":1.0."${CI_PIPELINE_IID}" "${image}":latest
+          docker push "${image}":latest
+        done
+
+unit_testing:
+  stage: testing
+  image: ${REGISTRY_BASE}/php-fpm:1.0.${CI_PIPELINE_IID}
+  before_script:
+    - curl --location --output /usr/local/bin/phpunit https://phar.phpunit.de/phpunit.phar
+    - chmod +x /usr/local/bin/phpunit
+  services:
+    - name: ${REGISTRY_BASE}/mysql:1.0.${CI_PIPELINE_IID}
+      alias: mysql
+    - redis:5.0.0-alpine
+  script:
+    - cd $APP_NAME/
+    - cp .env.testing .env
+    - composer install
+    - php artisan key:generate
+    - php artisan migrate
+    - phpunit 
+
+deploy_production:  
+  stage: deployment
+  image: ${REGISTRY_BASE}/php-fpm:1.0.${CI_PIPELINE_IID}
+  before_script:
+    - composer global require laravel/envoy
+  script:
+    - 'which ssh-agent || ( apt-get update -y && apt-get install openssh-client -y )'
+    - eval $(ssh-agent -s)
+    - ssh-add <(echo "$SSH_PRIVATE_KEY")
+    - mkdir -p ~/.ssh
+    - '[[ -f /.dockerenv ]] && echo -e "Host *\n\tStrictHostKeyChecking no\n\n" > ~/.ssh/config'
+
+    - cd $APP_NAME/ && ~/.composer/vendor/bin/envoy run deploy --SERVER_IP=$SERVER_IP --GITLAB_SECRET=$GITLAB_SECRET --APP_NAME=$APP_NAME --GIT_URL=$GIT_URL
+  environment:
+    name: production
+    url: http://$SERVER_IP
+  when: manual
+  only:
+    - master
